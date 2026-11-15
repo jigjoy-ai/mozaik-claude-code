@@ -18044,6 +18044,7 @@ function toMessage(envelope) {
   return {
     id: envelope.id,
     senderId: envelope.senderId,
+    senderName: envelope.payload.senderName,
     text: envelope.payload.message,
     to: envelope.payload.to,
     at: new Date(envelope.createdAt)
@@ -18220,6 +18221,9 @@ var NetworkView = class {
     this.present.delete(peerId);
   }
   heard(message) {
+    if (message.senderName !== void 0 && !this.known.has(message.senderId)) {
+      this.known.set(message.senderId, { id: message.senderId, name: message.senderName });
+    }
     this.messages.push(message);
     if (this.messages.length > KEPT_MESSAGES) this.messages.shift();
   }
