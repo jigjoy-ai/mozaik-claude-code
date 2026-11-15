@@ -1,6 +1,7 @@
 export type PeerInfo = { id: string; name: string; role?: string }
 
-export type Message = { id: string; senderId: string; text: string; to?: string; at: Date }
+/** `senderName` is what the sender was called when it spoke: the network keeps it with the message. */
+export type Message = { id: string; senderId: string; senderName?: string; text: string; to?: string; at: Date }
 
 /** How many of the latest messages are kept. */
 const KEPT_MESSAGES = 200
@@ -39,6 +40,10 @@ export class NetworkView {
 	}
 
 	heard(message: Message): void {
+		// A sender this session never saw, because it left before this session came, is known by the name it spoke under.
+		if (message.senderName !== undefined && !this.known.has(message.senderId)) {
+			this.known.set(message.senderId, { id: message.senderId, name: message.senderName })
+		}
 		this.messages.push(message)
 		if (this.messages.length > KEPT_MESSAGES) this.messages.shift()
 	}

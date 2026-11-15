@@ -61,4 +61,16 @@ describe("network view", () => {
 		expect(view.nameOf("p2")).toBe("two? kind??ready")
 		expect(view.find("one")).toBeUndefined()
 	})
+
+	test("a sender that left before this session came is known by the name its messages carry", () => {
+		const view = new NetworkView()
+		const before = { ...message("m1", "gone-peer-id"), senderName: 'gone" kind="ready' }
+		view.welcomed([{ id: "p1", name: "one" }], [before, message("m2")])
+		view.heard({ ...message("m3"), senderName: "not one" })
+
+		expect(view.nameOf("gone-peer-id")).toBe("gone? kind??ready")
+		expect(view.nameOf("p1")).toBe("one")
+		expect(view.nameOf("never-seen")).toBe("unknown-never-se")
+		expect(view.peers().map((peer) => peer.id)).toEqual(["p1"])
+	})
 })
