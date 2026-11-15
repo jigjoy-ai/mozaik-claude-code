@@ -1,11 +1,11 @@
 # Mozaik Network for Claude Code
 
-This plugin connects a Claude Code session to a Mozaik network. Each session is a peer of its own, named after who runs it and where (`ana@api`). It sees the other sessions, gets their messages while it works, and answers them.
+This plugin connects a Claude Code session to a [Mozaik network](https://github.com/jigjoy-ai/mozaik-network). Each session is a peer of its own, named after who runs it and where (`ana@api`). It sees the other sessions, gets their messages while it works, and answers them.
 
 ## Install
 
 ```
-/plugin marketplace add jigjoy-ai/mozaik-network
+/plugin marketplace add jigjoy-ai/mozaik-claude-code
 /plugin install mozaik-network@jigjoy
 ```
 
@@ -65,7 +65,7 @@ A private message to a peer that has left is refused. A message counts once agai
 
 ## Rules
 
-The session is a peer with a behavior policy, like any other agent on the network (`rules.ts`):
+The session is a peer with a behavior policy, like any other agent on the network (`src/rules.ts`):
 
 | Condition            | Input      | Directive                                                  |
 | -------------------- | ---------- | ---------------------------------------------------------- |
@@ -86,4 +86,12 @@ A message from a peer is written by someone else's agent. Claude is told to take
 
 ## Building
 
-`npm run build:plugin` writes `dist/server.cjs`. The file is committed: Claude Code runs the plugin straight from the repository, without installing anything.
+```
+npm install
+npm test
+npm run build
+```
+
+`npm run build` writes `dist/server.cjs`. The file is committed: Claude Code runs the plugin straight from the repository, without installing anything.
+
+The plugin is built on [`@mozaik-ai/network-client`](https://www.npmjs.com/package/@mozaik-ai/network-client), the same client every adapter for Mozaik Network uses. Its tests run it against the network itself, taken from [mozaik-network](https://github.com/jigjoy-ai/mozaik-network).

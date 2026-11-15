@@ -1,12 +1,12 @@
-import { join, leave, sendMessage } from "@client/index"
-import { NetworkClient } from "@client/network-client"
-import { Peer } from "@client/peer/peer"
-import { readInviteLink, writeInviteLink } from "@client/invite-link"
+import { join, leave, sendMessage } from "@mozaik-ai/network-client"
+import { NetworkClient } from "@mozaik-ai/network-client/network-client"
+import { Peer } from "@mozaik-ai/network-client/peer/peer"
+import { readInviteLink, writeInviteLink } from "@mozaik-ai/network-client/invite-link"
 import { mozaikCloudKey } from "./mozaik-cloud-key"
 import { NetworkSettings, SavedNetwork } from "./network-settings"
 import { NetworkView } from "./network-view"
 import { claudeCodePolicy } from "./rules"
-import { SendLimit } from "@client/send-limit"
+import { SendLimit } from "@mozaik-ai/network-client/send-limit"
 
 type Membership = { peer: Peer; networkId: string }
 

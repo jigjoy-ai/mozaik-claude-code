@@ -7299,7 +7299,783 @@ var require_dist = __commonJS({
   }
 });
 
-// packages/claude-code/server.ts
+// node_modules/@mozaik-ai/network-client/dist/invite-link.js
+var require_invite_link = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/invite-link.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.HOSTED_NETWORK = void 0;
+    exports2.writeInviteLink = writeInviteLink2;
+    exports2.readInviteLink = readInviteLink2;
+    exports2.HOSTED_NETWORK = "https://network.app.jigjoy.ai";
+    function writeInviteLink2({ origin, invite }) {
+      return `${origin}#${invite}`;
+    }
+    function readInviteLink2(link, defaultOrigin) {
+      const [before, after] = link.trim().split("#");
+      const origin = after === void 0 ? defaultOrigin : before.replace(/\/+$/, "");
+      const invite = after ?? before;
+      return origin && invite.startsWith("nt_") ? { origin, invite } : void 0;
+    }
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/use-cases/join.js
+var require_join = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/use-cases/join.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.JoinNetworkUseCase = void 0;
+    var JoinNetworkUseCase = class {
+      connectionRegistry;
+      networkClient;
+      constructor(connectionRegistry, networkClient) {
+        this.connectionRegistry = connectionRegistry;
+        this.networkClient = networkClient;
+      }
+      async execute(peer, networkId) {
+        const connection = this.networkClient.connection(peer);
+        await connection.join(networkId);
+        this.connectionRegistry.register(peer.id, connection);
+      }
+    };
+    exports2.JoinNetworkUseCase = JoinNetworkUseCase;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/connection-registry.js
+var require_connection_registry = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/connection-registry.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.ConnectionRegistry = void 0;
+    var ConnectionRegistry = class {
+      connections = /* @__PURE__ */ new Map();
+      register(peerId, connection) {
+        this.connections.set(peerId, connection);
+      }
+      remove(peerId) {
+        this.connections.delete(peerId);
+      }
+      get(peerId) {
+        return this.connections.get(peerId);
+      }
+    };
+    exports2.ConnectionRegistry = ConnectionRegistry;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/use-cases/leave.js
+var require_leave = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/use-cases/leave.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.LeaveNetworkUseCase = void 0;
+    var LeaveNetworkUseCase = class {
+      connections;
+      constructor(connections) {
+        this.connections = connections;
+      }
+      async execute(peer, networkId) {
+        const connection = this.connections.get(peer.id);
+        if (!connection) {
+          throw new Error(`Connection to peer ${peer.id} not found`);
+        }
+        connection.leave(networkId);
+        this.connections.remove(peer.id);
+      }
+    };
+    exports2.LeaveNetworkUseCase = LeaveNetworkUseCase;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/use-cases/send-message.js
+var require_send_message = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/use-cases/send-message.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.SendMessageUseCase = void 0;
+    var SendMessageUseCase = class {
+      connections;
+      constructor(connections) {
+        this.connections = connections;
+      }
+      async execute(peer, networkId, message, to) {
+        const connection = this.connections.get(peer.id);
+        if (!connection) {
+          throw new Error(`Connection to peer ${peer.id} not found`);
+        }
+        connection.sendMessage(networkId, message, to);
+      }
+    };
+    exports2.SendMessageUseCase = SendMessageUseCase;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/use-cases/react.js
+var require_react = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/use-cases/react.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.ReactToMessageUseCase = void 0;
+    var ReactToMessageUseCase = class {
+      ruleEngine;
+      inputResolverRegistry;
+      directiveProcessor;
+      constructor(ruleEngine, inputResolverRegistry, directiveProcessor) {
+        this.ruleEngine = ruleEngine;
+        this.inputResolverRegistry = inputResolverRegistry;
+        this.directiveProcessor = directiveProcessor;
+      }
+      /** The rule that matches says what the peer reads from the envelope and what it does with it. No rule, nothing done. */
+      async execute(peer, networkId, envelope) {
+        const rule = await this.ruleEngine.decide(peer.getPolicy(), envelope);
+        if (!rule) {
+          return void 0;
+        }
+        const inputResolver = this.inputResolverRegistry.get(rule.input);
+        if (!inputResolver) {
+          throw new Error(`Input ${rule.input} not found`);
+        }
+        const input = await inputResolver.resolve(envelope);
+        return await this.directiveProcessor.process({ id: rule.directive, input });
+      }
+    };
+    exports2.ReactToMessageUseCase = ReactToMessageUseCase;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/directive-registry.js
+var require_directive_registry = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/directive-registry.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DirectiveRegistry = void 0;
+    var DirectiveRegistry = class {
+      directives = /* @__PURE__ */ new Map();
+      register(contractId, directive) {
+        this.directives.set(contractId, directive);
+      }
+      get(contractId) {
+        const directive = this.directives.get(contractId);
+        return directive;
+      }
+    };
+    exports2.DirectiveRegistry = DirectiveRegistry;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/input-resolver-registry.js
+var require_input_resolver_registry = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/input-resolver-registry.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.InputResolverRegistry = void 0;
+    var InputResolverRegistry = class {
+      resolvers = {};
+      register(id, resolver) {
+        this.resolvers[id] = resolver;
+      }
+      get(id) {
+        return this.resolvers[id];
+      }
+    };
+    exports2.InputResolverRegistry = InputResolverRegistry;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/rule-registry.js
+var require_rule_registry = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/rule-registry.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.RuleRegistry = void 0;
+    var RuleRegistry = class {
+      specifications = /* @__PURE__ */ new Map();
+      get(id) {
+        return this.specifications.get(id);
+      }
+      register(id, specification) {
+        this.specifications.set(id, specification);
+      }
+    };
+    exports2.RuleRegistry = RuleRegistry;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/rule-engine.js
+var require_rule_engine = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/rule-engine.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.RuleEngine = void 0;
+    var RuleEngine = class {
+      specificationRegistry;
+      constructor(specificationRegistry) {
+        this.specificationRegistry = specificationRegistry;
+      }
+      /** The rule to act on: of those whose condition holds, the one with the smallest priority. */
+      async decide(policy, envelope) {
+        const satisfiedRules = [];
+        for (const rule of policy.getRules()) {
+          const specification = this.specificationRegistry.get(rule.condition);
+          if (await specification?.isSatisfiedBy(envelope)) {
+            satisfiedRules.push(rule);
+          }
+        }
+        if (satisfiedRules.length === 0) {
+          return void 0;
+        }
+        return satisfiedRules.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))[0];
+      }
+    };
+    exports2.RuleEngine = RuleEngine;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/directive-processor.js
+var require_directive_processor = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/directive-processor.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DirectiveProcessor = void 0;
+    var DirectiveProcessor = class {
+      directiveRegistry;
+      constructor(directiveRegistry2) {
+        this.directiveRegistry = directiveRegistry2;
+      }
+      async process(directiveDefinition) {
+        const directive = this.directiveRegistry.get(directiveDefinition.id);
+        if (!directive) {
+          return void 0;
+        }
+        const result = await directive.invoke(directiveDefinition.input);
+        return {
+          directiveId: directive.id,
+          result
+        };
+      }
+    };
+    exports2.DirectiveProcessor = DirectiveProcessor;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/peer.js
+var require_peer = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/peer.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.Peer = void 0;
+    var index_1 = require_dist2();
+    var Peer = class {
+      id;
+      /** What the peer joins a network with. The network shows it once, when the peer is created. */
+      token;
+      /** The network the peer was invited to, when it was created with an invite. */
+      invitedTo;
+      policy;
+      manifest;
+      constructor(id, manifest, policy, token, invitedTo) {
+        this.id = id;
+        this.policy = policy;
+        this.manifest = manifest;
+        this.token = token;
+        this.invitedTo = invitedTo;
+      }
+      getPolicy() {
+        return this.policy;
+      }
+      getManifest() {
+        return { ...this.manifest };
+      }
+      async receive(envelope) {
+        await (0, index_1.reactToMessage)(this, envelope.networkId, envelope);
+      }
+    };
+    exports2.Peer = Peer;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/websocket-transport.js
+var require_websocket_transport = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/websocket-transport.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.WebSocketTransport = void 0;
+    var REPLACED_CLOSE_CODE = 4001;
+    var PING_INTERVAL_MS = 25e3;
+    var SILENCE_LIMIT_MS = 6e4;
+    var RECONNECT_DELAYS_MS = [500, 1e3, 2e3, 5e3, 15e3, 3e4];
+    var WebSocketTransport = class {
+      wsUrl;
+      label;
+      socket = null;
+      connectedPromise = null;
+      messageHandlers = [];
+      reconnectHandlers = [];
+      hasConnected = false;
+      closed = false;
+      failedTries = 0;
+      heardAt = 0;
+      heartbeat;
+      retry;
+      constructor(wsUrl, label) {
+        this.wsUrl = wsUrl;
+        this.label = label;
+      }
+      whenConnected() {
+        if (this.socket?.readyState === WebSocket.OPEN) {
+          return Promise.resolve();
+        }
+        if (!this.connectedPromise) {
+          this.connectedPromise = this.open();
+        }
+        return this.connectedPromise;
+      }
+      onMessage(handler) {
+        this.messageHandlers.push(handler);
+      }
+      /** Called each time the connection is back after it dropped: what was said on the old one has to be said again. */
+      onReconnect(handler) {
+        this.reconnectHandlers.push(handler);
+      }
+      send(frame) {
+        if (this.socket?.readyState !== WebSocket.OPEN) {
+          throw new Error("Socket is not connected");
+        }
+        this.socket.send(JSON.stringify(frame));
+      }
+      /** Closes for good: a transport closed on purpose doesn't come back. */
+      close() {
+        this.closed = true;
+        clearTimeout(this.retry);
+        clearInterval(this.heartbeat);
+        this.socket?.close(1e3);
+      }
+      open() {
+        const socket = new WebSocket(this.wsUrl);
+        this.socket = socket;
+        return new Promise((resolve, reject) => {
+          socket.addEventListener("open", () => {
+            this.hasConnected = true;
+            this.failedTries = 0;
+            this.watch(socket);
+            resolve();
+          });
+          socket.addEventListener("message", (event) => {
+            this.heardAt = Date.now();
+            const frame = JSON.parse(event.data);
+            if (frame.type === "pong")
+              return;
+            for (const handler of this.messageHandlers)
+              handler(frame);
+          });
+          socket.addEventListener("close", (event) => {
+            if (this.socket !== socket)
+              return;
+            reject(new Error("WebSocket connection failed"));
+            this.dropped(event.code);
+          });
+          socket.addEventListener("error", () => {
+            console.error(`WebSocket error (${this.label})`);
+          });
+        });
+      }
+      /** Pings the network, and gives the socket up when nothing has been heard from it for too long. */
+      watch(socket) {
+        this.heardAt = Date.now();
+        this.heartbeat = setInterval(() => {
+          if (Date.now() - this.heardAt > SILENCE_LIMIT_MS) {
+            socket.close();
+            this.dropped();
+            return;
+          }
+          if (socket.readyState === WebSocket.OPEN)
+            socket.send(JSON.stringify({ type: "ping" }));
+        }, PING_INTERVAL_MS);
+      }
+      /**
+       * A transport that has been connected comes back by itself; one that never got through has
+       * already said so. Neither does when it was closed on purpose or the peer's place was taken.
+       */
+      dropped(closeCode) {
+        clearInterval(this.heartbeat);
+        this.socket = null;
+        this.connectedPromise = null;
+        if (this.closed || closeCode === REPLACED_CLOSE_CODE || !this.hasConnected)
+          return;
+        const delay = RECONNECT_DELAYS_MS[Math.min(this.failedTries, RECONNECT_DELAYS_MS.length - 1)];
+        this.failedTries += 1;
+        this.retry = setTimeout(() => {
+          this.connectedPromise = this.open();
+          this.connectedPromise.then(() => this.reconnectHandlers.forEach((handler) => handler()), () => {
+          });
+        }, delay);
+      }
+    };
+    exports2.WebSocketTransport = WebSocketTransport;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/connection.js
+var require_connection = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/connection.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.Connection = void 0;
+    var websocket_transport_1 = require_websocket_transport();
+    var JOIN_TIMEOUT_MS = 1e4;
+    var Connection = class {
+      peer;
+      transport;
+      joined = false;
+      joining;
+      pending = Promise.resolve();
+      constructor(peer, wsUrl) {
+        this.peer = peer;
+        this.transport = new websocket_transport_1.WebSocketTransport(wsUrl, peer.id);
+      }
+      /** Resolves once the network has welcomed the peer, and fails with the network's answer if it refused. */
+      async join(networkId) {
+        if (!this.joined) {
+          this.transport.onMessage((frame) => {
+            this.pending = this.pending.then(() => this.receive(networkId, frame)).catch(console.error);
+          });
+          this.transport.onReconnect(() => this.sendJoin(networkId));
+          this.joined = true;
+        }
+        await this.transport.whenConnected();
+        const welcomed = this.welcomed();
+        this.sendJoin(networkId);
+        try {
+          await welcomed;
+        } catch (error2) {
+          this.transport.close();
+          throw error2;
+        }
+      }
+      leave(networkId) {
+        this.transport.send(this.envelope(networkId, "peer.leave", {
+          peerId: this.peer.id
+        }));
+        this.transport.close();
+      }
+      /** With `to`, the message goes to that peer only. */
+      sendMessage(networkId, message, to) {
+        this.transport.send({ ...this.envelope(networkId, "message.send", message), to });
+      }
+      welcomed() {
+        let timeout;
+        return new Promise((resolve, reject) => {
+          this.joining = { resolve, reject };
+          timeout = setTimeout(() => reject(new Error("The network didn't answer the join")), JOIN_TIMEOUT_MS);
+        }).finally(() => {
+          clearTimeout(timeout);
+          this.joining = void 0;
+        });
+      }
+      sendJoin(networkId) {
+        this.transport.send({
+          ...this.envelope(networkId, "peer.join", {
+            peerId: this.peer.id
+          }),
+          // Who the peer is comes from its token: the network believes nothing else.
+          token: this.peer.token
+        });
+      }
+      async receive(networkId, frame) {
+        if (frame.type === "error" && this.joining) {
+          this.joining.reject(new Error(frame.message));
+          return;
+        }
+        const envelope = frame.type === "error" ? this.refused(networkId, frame) : frame;
+        await this.peer.receive(envelope);
+        if (envelope.type === "peer.welcomed")
+          this.joining?.resolve();
+      }
+      /** What the network refused, as an envelope, so the peer's rules can react to it like to anything else. */
+      refused(networkId, refusal) {
+        return this.envelope(networkId, "error", { code: refusal.code, message: refusal.message });
+      }
+      envelope(networkId, type, payload) {
+        return {
+          type,
+          payload,
+          id: crypto.randomUUID(),
+          networkId,
+          senderId: this.peer.id,
+          createdAt: /* @__PURE__ */ new Date()
+        };
+      }
+    };
+    exports2.Connection = Connection;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/behavior-policy.js
+var require_behavior_policy = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/behavior-policy.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.BehaviorPolicy = void 0;
+    var BehaviorPolicy = class _BehaviorPolicy {
+      id;
+      rules;
+      constructor(id, rules) {
+        this.id = id;
+        this.rules = rules;
+      }
+      addRule(rule) {
+        this.rules.push(rule);
+      }
+      removeRule(rule) {
+        this.rules = this.rules.filter((r) => r.id !== rule.id);
+      }
+      getId() {
+        return this.id;
+      }
+      getRules() {
+        return this.rules;
+      }
+      static create(policyDefinition) {
+        const rules = [];
+        for (const ruleDefinition of policyDefinition.rules) {
+          const rule = {
+            id: crypto.randomUUID(),
+            condition: ruleDefinition.condition,
+            input: ruleDefinition.input,
+            directive: ruleDefinition.directive,
+            priority: ruleDefinition.priority
+          };
+          rules.push(rule);
+        }
+        const id = crypto.randomUUID();
+        return new _BehaviorPolicy(id, rules);
+      }
+    };
+    exports2.BehaviorPolicy = BehaviorPolicy;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/network-client.js
+var require_network_client = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/network-client.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.NetworkClient = void 0;
+    var peer_1 = require_peer();
+    var connection_1 = require_connection();
+    var behavior_policy_1 = require_behavior_policy();
+    var origin = process.env.NETWORK_ORIGIN || "http://localhost:3000";
+    var NetworkClient2 = class {
+      httpOrigin;
+      wsUrl;
+      apiKey;
+      constructor(options = {}) {
+        const resolved = this.resolveOrigins(options.origin ?? origin);
+        this.httpOrigin = resolved.httpOrigin;
+        this.wsUrl = resolved.wsUrl;
+        this.apiKey = options.apiKey;
+      }
+      resolveOrigins(origin2) {
+        const trimmed = origin2.replace(/\/$/, "");
+        if (trimmed.startsWith("ws://") || trimmed.startsWith("wss://")) {
+          return {
+            wsUrl: trimmed,
+            httpOrigin: trimmed.replace(/^ws(s)?/, "http$1")
+          };
+        }
+        return {
+          httpOrigin: trimmed,
+          wsUrl: trimmed.replace(/^http(s)?/, "ws$1")
+        };
+      }
+      async createNetwork(payload) {
+        return this.post("/networks", payload, this.apiKey);
+      }
+      /** An invite lets whoever holds it make peers in the network without an API key. It is shown only now. */
+      async createInvite(networkId) {
+        const response = await this.post(`/networks/${networkId}/invites`, {}, this.apiKey);
+        return response.invite;
+      }
+      async createPeer(payload) {
+        const { name, role, capabilities } = payload;
+        const response = await this.post("/peers", { name, role, capabilities }, payload.invite ?? this.apiKey);
+        const policy = behavior_policy_1.BehaviorPolicy.create(payload.policy);
+        return new peer_1.Peer(response.id, {
+          id: response.id,
+          name: payload.name,
+          capabilities: payload.capabilities
+        }, policy, response.token, response.networkId);
+      }
+      connection(peer) {
+        return new connection_1.Connection(peer, this.wsUrl);
+      }
+      async post(path, body, credential) {
+        const response = await fetch(`${this.httpOrigin}${path}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...credential ? { Authorization: `Bearer ${credential}` } : {}
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error(`POST ${path} failed (${response.status}): ${detail || response.statusText}`);
+        }
+        return response.json();
+      }
+    };
+    exports2.NetworkClient = NetworkClient2;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/index.js
+var require_dist2 = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.directiveRegistry = exports2.specificationRegistry = exports2.inputResolverRegistry = void 0;
+    exports2.join = join4;
+    exports2.leave = leave2;
+    exports2.sendMessage = sendMessage2;
+    exports2.reactToMessage = reactToMessage;
+    exports2.Input = Input2;
+    exports2.Condition = Condition2;
+    var join_1 = require_join();
+    var connection_registry_1 = require_connection_registry();
+    var leave_1 = require_leave();
+    var send_message_1 = require_send_message();
+    var react_1 = require_react();
+    var directive_registry_1 = require_directive_registry();
+    var input_resolver_registry_1 = require_input_resolver_registry();
+    var rule_registry_1 = require_rule_registry();
+    var rule_engine_1 = require_rule_engine();
+    var directive_processor_1 = require_directive_processor();
+    var network_client_1 = require_network_client();
+    var connectionRegistry = new connection_registry_1.ConnectionRegistry();
+    async function join4(peer, networkId, client = new network_client_1.NetworkClient()) {
+      const useCase = new join_1.JoinNetworkUseCase(connectionRegistry, client);
+      return await useCase.execute(peer, networkId);
+    }
+    async function leave2(peer, networkId) {
+      const useCase = new leave_1.LeaveNetworkUseCase(connectionRegistry);
+      return await useCase.execute(peer, networkId);
+    }
+    function sendMessage2(peer, networkId, message, to) {
+      const useCase = new send_message_1.SendMessageUseCase(connectionRegistry);
+      return useCase.execute(peer, networkId, message, to);
+    }
+    async function reactToMessage(peer, networkId, envelope) {
+      const useCase = new react_1.ReactToMessageUseCase(new rule_engine_1.RuleEngine(exports2.specificationRegistry), exports2.inputResolverRegistry, new directive_processor_1.DirectiveProcessor(exports2.directiveRegistry));
+      return await useCase.execute(peer, networkId, envelope);
+    }
+    exports2.inputResolverRegistry = new input_resolver_registry_1.InputResolverRegistry();
+    exports2.specificationRegistry = new rule_registry_1.RuleRegistry();
+    exports2.directiveRegistry = new directive_registry_1.DirectiveRegistry();
+    function Input2(options) {
+      return function(ResolverClass, _context) {
+        exports2.inputResolverRegistry.register(options.name, new ResolverClass());
+      };
+    }
+    function Condition2(options) {
+      return function(SpecificationClass, _context) {
+        exports2.specificationRegistry.register(options.name, new SpecificationClass());
+      };
+    }
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/peer/condition-specification.js
+var require_condition_specification = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/peer/condition-specification.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.NotConditionSpecification = exports2.OrConditionSpecification = exports2.AndConditionSpecification = exports2.ConditionSpecification = void 0;
+    var ConditionSpecification2 = class {
+      and(other) {
+        return new AndConditionSpecification(this, other);
+      }
+      or(other) {
+        return new OrConditionSpecification(this, other);
+      }
+      not() {
+        return new NotConditionSpecification(this);
+      }
+    };
+    exports2.ConditionSpecification = ConditionSpecification2;
+    var AndConditionSpecification = class extends ConditionSpecification2 {
+      left;
+      right;
+      constructor(left, right) {
+        super();
+        this.left = left;
+        this.right = right;
+      }
+      async isSatisfiedBy(envelope) {
+        return await this.left.isSatisfiedBy(envelope) && await this.right.isSatisfiedBy(envelope);
+      }
+    };
+    exports2.AndConditionSpecification = AndConditionSpecification;
+    var OrConditionSpecification = class extends ConditionSpecification2 {
+      left;
+      right;
+      constructor(left, right) {
+        super();
+        this.left = left;
+        this.right = right;
+      }
+      async isSatisfiedBy(envelope) {
+        return await this.left.isSatisfiedBy(envelope) || await this.right.isSatisfiedBy(envelope);
+      }
+    };
+    exports2.OrConditionSpecification = OrConditionSpecification;
+    var NotConditionSpecification = class extends ConditionSpecification2 {
+      condition;
+      constructor(condition) {
+        super();
+        this.condition = condition;
+      }
+      async isSatisfiedBy(envelope) {
+        return !await this.condition.isSatisfiedBy(envelope);
+      }
+    };
+    exports2.NotConditionSpecification = NotConditionSpecification;
+  }
+});
+
+// node_modules/@mozaik-ai/network-client/dist/send-limit.js
+var require_send_limit = __commonJS({
+  "node_modules/@mozaik-ai/network-client/dist/send-limit.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.SendLimit = void 0;
+    var SendLimit2 = class {
+      limit;
+      windowMs;
+      now;
+      sentAt = [];
+      constructor(limit = 10, windowMs = 6e4, now = Date.now) {
+        this.limit = limit;
+        this.windowMs = windowMs;
+        this.now = now;
+      }
+      take() {
+        const now = this.now();
+        this.sentAt = this.sentAt.filter((at) => now - at < this.windowMs);
+        if (this.sentAt.length >= this.limit) {
+          const seconds = Math.ceil((this.windowMs - (now - this.sentAt[0])) / 1e3);
+          throw new Error(`Too many messages: ${this.limit} were sent in the last minute. Wait ${seconds}s.`);
+        }
+        this.sentAt.push(now);
+      }
+    };
+    exports2.SendLimit = SendLimit2;
+  }
+});
+
+// src/server.ts
 var import_node_os3 = require("node:os");
 var import_node_path3 = require("node:path");
 
@@ -8618,13 +9394,13 @@ var numericOriginMap = {
 };
 var $ZodCheckLessThan = /* @__PURE__ */ $constructor("$ZodCheckLessThan", (inst, def) => {
   $ZodCheck.init(inst, def);
-  const origin2 = numericOriginMap[typeof def.value];
+  const origin = numericOriginMap[typeof def.value];
   inst._zod.check = (payload) => {
     if (def.inclusive ? payload.value <= def.value : payload.value < def.value) {
       return;
     }
     payload.issues.push({
-      origin: numericOriginMap[typeof payload.value] ?? origin2,
+      origin: numericOriginMap[typeof payload.value] ?? origin,
       code: "too_big",
       maximum: typeof def.value === "object" ? def.value.getTime() : def.value,
       input: payload.value,
@@ -8636,13 +9412,13 @@ var $ZodCheckLessThan = /* @__PURE__ */ $constructor("$ZodCheckLessThan", (inst,
 });
 var $ZodCheckGreaterThan = /* @__PURE__ */ $constructor("$ZodCheckGreaterThan", (inst, def) => {
   $ZodCheck.init(inst, def);
-  const origin2 = numericOriginMap[typeof def.value];
+  const origin = numericOriginMap[typeof def.value];
   inst._zod.check = (payload) => {
     if (def.inclusive ? payload.value >= def.value : payload.value > def.value) {
       return;
     }
     payload.issues.push({
-      origin: numericOriginMap[typeof payload.value] ?? origin2,
+      origin: numericOriginMap[typeof payload.value] ?? origin,
       code: "too_small",
       minimum: typeof def.value === "object" ? def.value.getTime() : def.value,
       input: payload.value,
@@ -8677,14 +9453,14 @@ var $ZodCheckNumberFormat = /* @__PURE__ */ $constructor("$ZodCheckNumberFormat"
   $ZodCheck.init(inst, def);
   def.format = def.format || "float64";
   const isInt = def.format?.includes("int");
-  const origin2 = isInt ? "int" : "number";
+  const origin = isInt ? "int" : "number";
   const [minimum, maximum] = NUMBER_FORMAT_RANGES[def.format];
   inst._zod.check = (payload) => {
     const input = payload.value;
     if (isInt) {
       if (!Number.isInteger(input)) {
         payload.issues.push({
-          expected: origin2,
+          expected: origin,
           format: def.format,
           code: "invalid_type",
           continue: false,
@@ -8701,7 +9477,7 @@ var $ZodCheckNumberFormat = /* @__PURE__ */ $constructor("$ZodCheckNumberFormat"
             maximum: Number.MAX_SAFE_INTEGER,
             note: "Integers must be within the safe integer range.",
             inst,
-            origin: origin2,
+            origin,
             inclusive: true,
             continue: !def.abort
           });
@@ -8712,7 +9488,7 @@ var $ZodCheckNumberFormat = /* @__PURE__ */ $constructor("$ZodCheckNumberFormat"
             minimum: Number.MIN_SAFE_INTEGER,
             note: "Integers must be within the safe integer range.",
             inst,
-            origin: origin2,
+            origin,
             inclusive: true,
             continue: !def.abort
           });
@@ -8754,9 +9530,9 @@ var $ZodCheckMaxLength = /* @__PURE__ */ $constructor("$ZodCheckMaxLength", (ins
     const length = typeof input === "string" && units > def.maximum ? codePointLength(input) : units;
     if (length <= def.maximum)
       return;
-    const origin2 = getLengthableOrigin(input);
+    const origin = getLengthableOrigin(input);
     payload.issues.push({
-      origin: origin2,
+      origin,
       code: "too_big",
       maximum: def.maximum,
       inclusive: true,
@@ -8776,9 +9552,9 @@ var $ZodCheckMinLength = /* @__PURE__ */ $constructor("$ZodCheckMinLength", (ins
     const length = typeof input === "string" && units >= def.minimum && units < def.minimum * 2 ? codePointLength(input) : units;
     if (length >= def.minimum)
       return;
-    const origin2 = getLengthableOrigin(input);
+    const origin = getLengthableOrigin(input);
     payload.issues.push({
-      origin: origin2,
+      origin,
       code: "too_small",
       minimum: def.minimum,
       inclusive: true,
@@ -8798,10 +9574,10 @@ var $ZodCheckLengthEquals = /* @__PURE__ */ $constructor("$ZodCheckLengthEquals"
     const length = typeof input === "string" && units >= def.length && units <= def.length * 2 ? codePointLength(input) : units;
     if (length === def.length)
       return;
-    const origin2 = getLengthableOrigin(input);
+    const origin = getLengthableOrigin(input);
     const tooBig = length > def.length;
     payload.issues.push({
-      origin: origin2,
+      origin,
       ...tooBig ? { code: "too_big", maximum: def.length } : { code: "too_small", minimum: def.length },
       inclusive: true,
       exact: true,
@@ -10918,8 +11694,8 @@ var error = () => {
     set: { unit: "items", verb: "to have" },
     map: { unit: "entries", verb: "to have" }
   };
-  function getSizing(origin2) {
-    return Sizable[origin2] ?? null;
+  function getSizing(origin) {
+    return Sizable[origin] ?? null;
   }
   const FormatDictionary = {
     regex: "input",
@@ -17087,541 +17863,27 @@ var StdioServerTransport = class {
   }
 };
 
-// packages/client/invite-link.ts
-var HOSTED_NETWORK = "https://network.app.jigjoy.ai";
-function writeInviteLink({ origin: origin2, invite }) {
-  return `${origin2}#${invite}`;
-}
-function readInviteLink(link, defaultOrigin) {
-  const [before, after] = link.trim().split("#");
-  const origin2 = after === void 0 ? defaultOrigin : before.replace(/\/+$/, "");
-  const invite = after ?? before;
-  return origin2 && invite.startsWith("nt_") ? { origin: origin2, invite } : void 0;
-}
+// src/server.ts
+var import_invite_link2 = __toESM(require_invite_link());
 
-// packages/claude-code/channel.ts
+// src/channel.ts
 var ClaudeCodeChannel = class {
   constructor(mcp) {
     this.mcp = mcp;
   }
+  mcp;
   /** Claude Code doesn't say whether it took the event: a session that wasn't started with this channel drops it. */
   async push(content, meta2) {
     await this.mcp.notification({ method: "notifications/claude/channel", params: { content, meta: meta2 } });
   }
 };
 
-// packages/client/use-cases/join.ts
-var JoinNetworkUseCase = class {
-  constructor(connectionRegistry2, networkClient) {
-    this.connectionRegistry = connectionRegistry2;
-    this.networkClient = networkClient;
-  }
-  async execute(peer, networkId) {
-    const connection = this.networkClient.connection(peer);
-    await connection.join(networkId);
-    this.connectionRegistry.register(peer.id, connection);
-  }
-};
+// src/network-session.ts
+var import_network_client2 = __toESM(require_dist2());
+var import_network_client3 = __toESM(require_network_client());
+var import_invite_link = __toESM(require_invite_link());
 
-// packages/client/connection-registry.ts
-var ConnectionRegistry = class {
-  constructor() {
-    this.connections = /* @__PURE__ */ new Map();
-  }
-  register(peerId, connection) {
-    this.connections.set(peerId, connection);
-  }
-  remove(peerId) {
-    this.connections.delete(peerId);
-  }
-  get(peerId) {
-    return this.connections.get(peerId);
-  }
-};
-
-// packages/client/use-cases/leave.ts
-var LeaveNetworkUseCase = class {
-  constructor(connections) {
-    this.connections = connections;
-  }
-  async execute(peer, networkId) {
-    const connection = this.connections.get(peer.id);
-    if (!connection) {
-      throw new Error(`Connection to peer ${peer.id} not found`);
-    }
-    connection.leave(networkId);
-    this.connections.remove(peer.id);
-  }
-};
-
-// packages/client/use-cases/send-message.ts
-var SendMessageUseCase = class {
-  constructor(connections) {
-    this.connections = connections;
-  }
-  async execute(peer, networkId, message, to) {
-    const connection = this.connections.get(peer.id);
-    if (!connection) {
-      throw new Error(`Connection to peer ${peer.id} not found`);
-    }
-    connection.sendMessage(networkId, message, to);
-  }
-};
-
-// packages/client/use-cases/react.ts
-var ReactToMessageUseCase = class {
-  constructor(ruleEngine, inputResolverRegistry2, directiveProcessor) {
-    this.ruleEngine = ruleEngine;
-    this.inputResolverRegistry = inputResolverRegistry2;
-    this.directiveProcessor = directiveProcessor;
-  }
-  /** The rule that matches says what the peer reads from the envelope and what it does with it. No rule, nothing done. */
-  async execute(peer, networkId, envelope) {
-    const rule = await this.ruleEngine.decide(peer.getPolicy(), envelope);
-    if (!rule) {
-      return void 0;
-    }
-    const inputResolver = this.inputResolverRegistry.get(rule.input);
-    if (!inputResolver) {
-      throw new Error(`Input ${rule.input} not found`);
-    }
-    const input = await inputResolver.resolve(envelope);
-    return await this.directiveProcessor.process({ id: rule.directive, input });
-  }
-};
-
-// packages/client/peer/directive-registry.ts
-var DirectiveRegistry = class {
-  constructor() {
-    this.directives = /* @__PURE__ */ new Map();
-  }
-  register(contractId, directive) {
-    this.directives.set(contractId, directive);
-  }
-  get(contractId) {
-    const directive = this.directives.get(contractId);
-    return directive;
-  }
-};
-
-// packages/client/peer/input-resolver-registry.ts
-var InputResolverRegistry = class {
-  constructor() {
-    this.resolvers = {};
-  }
-  register(id, resolver) {
-    this.resolvers[id] = resolver;
-  }
-  get(id) {
-    return this.resolvers[id];
-  }
-};
-
-// packages/client/peer/rule-registry.ts
-var RuleRegistry = class {
-  constructor() {
-    this.specifications = /* @__PURE__ */ new Map();
-  }
-  get(id) {
-    return this.specifications.get(id);
-  }
-  register(id, specification) {
-    this.specifications.set(id, specification);
-  }
-};
-
-// packages/client/peer/rule-engine.ts
-var RuleEngine = class {
-  constructor(specificationRegistry2) {
-    this.specificationRegistry = specificationRegistry2;
-  }
-  /** The rule to act on: of those whose condition holds, the one with the smallest priority. */
-  async decide(policy, envelope) {
-    const satisfiedRules = [];
-    for (const rule of policy.getRules()) {
-      const specification = this.specificationRegistry.get(rule.condition);
-      if (await specification?.isSatisfiedBy(envelope)) {
-        satisfiedRules.push(rule);
-      }
-    }
-    if (satisfiedRules.length === 0) {
-      return void 0;
-    }
-    return satisfiedRules.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))[0];
-  }
-};
-
-// packages/client/peer/directive-processor.ts
-var DirectiveProcessor = class {
-  constructor(directiveRegistry2) {
-    this.directiveRegistry = directiveRegistry2;
-  }
-  async process(directiveDefinition) {
-    const directive = this.directiveRegistry.get(directiveDefinition.id);
-    if (!directive) {
-      return void 0;
-    }
-    const result = await directive.invoke(directiveDefinition.input);
-    return {
-      directiveId: directive.id,
-      result
-    };
-  }
-};
-
-// packages/client/peer/peer.ts
-var Peer = class {
-  constructor(id, manifest, policy, token, invitedTo) {
-    this.id = id;
-    this.policy = policy;
-    this.manifest = manifest;
-    this.token = token;
-    this.invitedTo = invitedTo;
-  }
-  getPolicy() {
-    return this.policy;
-  }
-  getManifest() {
-    return { ...this.manifest };
-  }
-  async receive(envelope) {
-    await reactToMessage(this, envelope.networkId, envelope);
-  }
-};
-
-// packages/client/websocket-transport.ts
-var REPLACED_CLOSE_CODE = 4001;
-var PING_INTERVAL_MS = 25e3;
-var SILENCE_LIMIT_MS = 6e4;
-var RECONNECT_DELAYS_MS = [500, 1e3, 2e3, 5e3, 15e3, 3e4];
-var WebSocketTransport = class {
-  constructor(wsUrl, label) {
-    this.wsUrl = wsUrl;
-    this.label = label;
-    this.socket = null;
-    this.connectedPromise = null;
-    this.messageHandlers = [];
-    this.reconnectHandlers = [];
-    this.hasConnected = false;
-    this.closed = false;
-    this.failedTries = 0;
-    this.heardAt = 0;
-  }
-  whenConnected() {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      return Promise.resolve();
-    }
-    if (!this.connectedPromise) {
-      this.connectedPromise = this.open();
-    }
-    return this.connectedPromise;
-  }
-  onMessage(handler) {
-    this.messageHandlers.push(handler);
-  }
-  /** Called each time the connection is back after it dropped: what was said on the old one has to be said again. */
-  onReconnect(handler) {
-    this.reconnectHandlers.push(handler);
-  }
-  send(frame) {
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      throw new Error("Socket is not connected");
-    }
-    this.socket.send(JSON.stringify(frame));
-  }
-  /** Closes for good: a transport closed on purpose doesn't come back. */
-  close() {
-    this.closed = true;
-    clearTimeout(this.retry);
-    clearInterval(this.heartbeat);
-    this.socket?.close(1e3);
-  }
-  open() {
-    const socket = new WebSocket(this.wsUrl);
-    this.socket = socket;
-    return new Promise((resolve, reject) => {
-      socket.addEventListener("open", () => {
-        this.hasConnected = true;
-        this.failedTries = 0;
-        this.watch(socket);
-        resolve();
-      });
-      socket.addEventListener("message", (event) => {
-        this.heardAt = Date.now();
-        const frame = JSON.parse(event.data);
-        if (frame.type === "pong") return;
-        for (const handler of this.messageHandlers) handler(frame);
-      });
-      socket.addEventListener("close", (event) => {
-        if (this.socket !== socket) return;
-        reject(new Error("WebSocket connection failed"));
-        this.dropped(event.code);
-      });
-      socket.addEventListener("error", () => {
-        console.error(`WebSocket error (${this.label})`);
-      });
-    });
-  }
-  /** Pings the network, and gives the socket up when nothing has been heard from it for too long. */
-  watch(socket) {
-    this.heardAt = Date.now();
-    this.heartbeat = setInterval(() => {
-      if (Date.now() - this.heardAt > SILENCE_LIMIT_MS) {
-        socket.close();
-        this.dropped();
-        return;
-      }
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping" }));
-    }, PING_INTERVAL_MS);
-  }
-  /**
-   * A transport that has been connected comes back by itself; one that never got through has
-   * already said so. Neither does when it was closed on purpose or the peer's place was taken.
-   */
-  dropped(closeCode) {
-    clearInterval(this.heartbeat);
-    this.socket = null;
-    this.connectedPromise = null;
-    if (this.closed || closeCode === REPLACED_CLOSE_CODE || !this.hasConnected) return;
-    const delay = RECONNECT_DELAYS_MS[Math.min(this.failedTries, RECONNECT_DELAYS_MS.length - 1)];
-    this.failedTries += 1;
-    this.retry = setTimeout(() => {
-      this.connectedPromise = this.open();
-      this.connectedPromise.then(
-        () => this.reconnectHandlers.forEach((handler) => handler()),
-        () => {
-        }
-      );
-    }, delay);
-  }
-};
-
-// packages/client/connection.ts
-var JOIN_TIMEOUT_MS = 1e4;
-var Connection = class {
-  constructor(peer, wsUrl) {
-    this.peer = peer;
-    this.joined = false;
-    this.pending = Promise.resolve();
-    this.transport = new WebSocketTransport(wsUrl, peer.id);
-  }
-  /** Resolves once the network has welcomed the peer, and fails with the network's answer if it refused. */
-  async join(networkId) {
-    if (!this.joined) {
-      this.transport.onMessage((frame) => {
-        this.pending = this.pending.then(() => this.receive(networkId, frame)).catch(console.error);
-      });
-      this.transport.onReconnect(() => this.sendJoin(networkId));
-      this.joined = true;
-    }
-    await this.transport.whenConnected();
-    const welcomed = this.welcomed();
-    this.sendJoin(networkId);
-    try {
-      await welcomed;
-    } catch (error2) {
-      this.transport.close();
-      throw error2;
-    }
-  }
-  leave(networkId) {
-    this.transport.send(
-      this.envelope(networkId, "peer.leave", {
-        peerId: this.peer.id
-      })
-    );
-    this.transport.close();
-  }
-  /** With `to`, the message goes to that peer only. */
-  sendMessage(networkId, message, to) {
-    this.transport.send({ ...this.envelope(networkId, "message.send", message), to });
-  }
-  welcomed() {
-    let timeout;
-    return new Promise((resolve, reject) => {
-      this.joining = { resolve, reject };
-      timeout = setTimeout(() => reject(new Error("The network didn't answer the join")), JOIN_TIMEOUT_MS);
-    }).finally(() => {
-      clearTimeout(timeout);
-      this.joining = void 0;
-    });
-  }
-  sendJoin(networkId) {
-    this.transport.send({
-      ...this.envelope(networkId, "peer.join", {
-        peerId: this.peer.id
-      }),
-      // Who the peer is comes from its token: the network believes nothing else.
-      token: this.peer.token
-    });
-  }
-  async receive(networkId, frame) {
-    if (frame.type === "error" && this.joining) {
-      this.joining.reject(new Error(frame.message));
-      return;
-    }
-    const envelope = frame.type === "error" ? this.refused(networkId, frame) : frame;
-    await this.peer.receive(envelope);
-    if (envelope.type === "peer.welcomed") this.joining?.resolve();
-  }
-  /** What the network refused, as an envelope, so the peer's rules can react to it like to anything else. */
-  refused(networkId, refusal) {
-    return this.envelope(networkId, "error", { code: refusal.code, message: refusal.message });
-  }
-  envelope(networkId, type, payload) {
-    return {
-      type,
-      payload,
-      id: crypto.randomUUID(),
-      networkId,
-      senderId: this.peer.id,
-      createdAt: /* @__PURE__ */ new Date()
-    };
-  }
-};
-
-// packages/client/peer/behavior-policy.ts
-var BehaviorPolicy = class _BehaviorPolicy {
-  constructor(id, rules) {
-    this.id = id;
-    this.rules = rules;
-  }
-  addRule(rule) {
-    this.rules.push(rule);
-  }
-  removeRule(rule) {
-    this.rules = this.rules.filter((r) => r.id !== rule.id);
-  }
-  getId() {
-    return this.id;
-  }
-  getRules() {
-    return this.rules;
-  }
-  static create(policyDefinition) {
-    const rules = [];
-    for (const ruleDefinition of policyDefinition.rules) {
-      const rule = {
-        id: crypto.randomUUID(),
-        condition: ruleDefinition.condition,
-        input: ruleDefinition.input,
-        directive: ruleDefinition.directive,
-        priority: ruleDefinition.priority
-      };
-      rules.push(rule);
-    }
-    const id = crypto.randomUUID();
-    return new _BehaviorPolicy(id, rules);
-  }
-};
-
-// packages/client/network-client.ts
-var origin = process.env.NETWORK_ORIGIN || "http://localhost:3000";
-var NetworkClient = class {
-  constructor(options = {}) {
-    const resolved = this.resolveOrigins(options.origin ?? origin);
-    this.httpOrigin = resolved.httpOrigin;
-    this.wsUrl = resolved.wsUrl;
-    this.apiKey = options.apiKey;
-  }
-  resolveOrigins(origin2) {
-    const trimmed = origin2.replace(/\/$/, "");
-    if (trimmed.startsWith("ws://") || trimmed.startsWith("wss://")) {
-      return {
-        wsUrl: trimmed,
-        httpOrigin: trimmed.replace(/^ws(s)?/, "http$1")
-      };
-    }
-    return {
-      httpOrigin: trimmed,
-      wsUrl: trimmed.replace(/^http(s)?/, "ws$1")
-    };
-  }
-  async createNetwork(payload) {
-    return this.post("/networks", payload, this.apiKey);
-  }
-  /** An invite lets whoever holds it make peers in the network without an API key. It is shown only now. */
-  async createInvite(networkId) {
-    const response = await this.post(`/networks/${networkId}/invites`, {}, this.apiKey);
-    return response.invite;
-  }
-  async createPeer(payload) {
-    const { name, role, capabilities } = payload;
-    const response = await this.post(
-      "/peers",
-      { name, role, capabilities },
-      payload.invite ?? this.apiKey
-    );
-    const policy = BehaviorPolicy.create(payload.policy);
-    return new Peer(
-      response.id,
-      {
-        id: response.id,
-        name: payload.name,
-        capabilities: payload.capabilities
-      },
-      policy,
-      response.token,
-      response.networkId
-    );
-  }
-  connection(peer) {
-    return new Connection(peer, this.wsUrl);
-  }
-  async post(path, body, credential) {
-    const response = await fetch(`${this.httpOrigin}${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...credential ? { Authorization: `Bearer ${credential}` } : {}
-      },
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`POST ${path} failed (${response.status}): ${detail || response.statusText}`);
-    }
-    return response.json();
-  }
-};
-
-// packages/client/index.ts
-var connectionRegistry = new ConnectionRegistry();
-async function join(peer, networkId, client = new NetworkClient()) {
-  const useCase = new JoinNetworkUseCase(connectionRegistry, client);
-  return await useCase.execute(peer, networkId);
-}
-async function leave(peer, networkId) {
-  const useCase = new LeaveNetworkUseCase(connectionRegistry);
-  return await useCase.execute(peer, networkId);
-}
-function sendMessage(peer, networkId, message, to) {
-  const useCase = new SendMessageUseCase(connectionRegistry);
-  return useCase.execute(peer, networkId, message, to);
-}
-async function reactToMessage(peer, networkId, envelope) {
-  const useCase = new ReactToMessageUseCase(
-    new RuleEngine(specificationRegistry),
-    inputResolverRegistry,
-    new DirectiveProcessor(directiveRegistry)
-  );
-  return await useCase.execute(peer, networkId, envelope);
-}
-var inputResolverRegistry = new InputResolverRegistry();
-var specificationRegistry = new RuleRegistry();
-var directiveRegistry = new DirectiveRegistry();
-function Input(options) {
-  return function(ResolverClass, _context) {
-    inputResolverRegistry.register(options.name, new ResolverClass());
-  };
-}
-function Condition(options) {
-  return function(SpecificationClass, _context) {
-    specificationRegistry.register(options.name, new SpecificationClass());
-  };
-}
-
-// packages/claude-code/mozaik-cloud-key.ts
+// src/mozaik-cloud-key.ts
 var import_node_fs = require("node:fs");
 var import_node_os = require("node:os");
 var import_node_path = require("node:path");
@@ -17639,49 +17901,9 @@ function mozaikCloudKey() {
   }
 }
 
-// packages/client/peer/condition-specification.ts
-var ConditionSpecification = class {
-  and(other) {
-    return new AndConditionSpecification(this, other);
-  }
-  or(other) {
-    return new OrConditionSpecification(this, other);
-  }
-  not() {
-    return new NotConditionSpecification(this);
-  }
-};
-var AndConditionSpecification = class extends ConditionSpecification {
-  constructor(left, right) {
-    super();
-    this.left = left;
-    this.right = right;
-  }
-  async isSatisfiedBy(envelope) {
-    return await this.left.isSatisfiedBy(envelope) && await this.right.isSatisfiedBy(envelope);
-  }
-};
-var OrConditionSpecification = class extends ConditionSpecification {
-  constructor(left, right) {
-    super();
-    this.left = left;
-    this.right = right;
-  }
-  async isSatisfiedBy(envelope) {
-    return await this.left.isSatisfiedBy(envelope) || await this.right.isSatisfiedBy(envelope);
-  }
-};
-var NotConditionSpecification = class extends ConditionSpecification {
-  constructor(condition) {
-    super();
-    this.condition = condition;
-  }
-  async isSatisfiedBy(envelope) {
-    return !await this.condition.isSatisfiedBy(envelope);
-  }
-};
-
-// packages/claude-code/rules.ts
+// src/rules.ts
+var import_network_client = __toESM(require_dist2());
+var import_condition_specification = __toESM(require_condition_specification());
 var claudeCodePolicy = {
   rules: [
     { condition: "message.received", input: "message", directive: "claude_code.notify" },
@@ -17690,8 +17912,8 @@ var claudeCodePolicy = {
   ]
 };
 var _MessageReceivedCondition_decorators, _init, _a3;
-_MessageReceivedCondition_decorators = [Condition({ name: "message.received" })];
-var MessageReceivedCondition = class extends (_a3 = ConditionSpecification) {
+_MessageReceivedCondition_decorators = [(0, import_network_client.Condition)({ name: "message.received" })];
+var MessageReceivedCondition = class extends (_a3 = import_condition_specification.ConditionSpecification) {
   isSatisfiedBy(envelope) {
     return envelope.type === "message.sent";
   }
@@ -17700,8 +17922,8 @@ _init = __decoratorStart(_a3);
 MessageReceivedCondition = __decorateElement(_init, 0, "MessageReceivedCondition", _MessageReceivedCondition_decorators, MessageReceivedCondition);
 __runInitializers(_init, 1, MessageReceivedCondition);
 var _MembershipChangedCondition_decorators, _init2, _a4;
-_MembershipChangedCondition_decorators = [Condition({ name: "membership.changed" })];
-var MembershipChangedCondition = class extends (_a4 = ConditionSpecification) {
+_MembershipChangedCondition_decorators = [(0, import_network_client.Condition)({ name: "membership.changed" })];
+var MembershipChangedCondition = class extends (_a4 = import_condition_specification.ConditionSpecification) {
   isSatisfiedBy(envelope) {
     return ["peer.welcomed", "peer.joined", "peer.left"].includes(envelope.type);
   }
@@ -17710,8 +17932,8 @@ _init2 = __decoratorStart(_a4);
 MembershipChangedCondition = __decorateElement(_init2, 0, "MembershipChangedCondition", _MembershipChangedCondition_decorators, MembershipChangedCondition);
 __runInitializers(_init2, 1, MembershipChangedCondition);
 var _RequestRefusedCondition_decorators, _init3, _a5;
-_RequestRefusedCondition_decorators = [Condition({ name: "request.refused" })];
-var RequestRefusedCondition = class extends (_a5 = ConditionSpecification) {
+_RequestRefusedCondition_decorators = [(0, import_network_client.Condition)({ name: "request.refused" })];
+var RequestRefusedCondition = class extends (_a5 = import_condition_specification.ConditionSpecification) {
   isSatisfiedBy(envelope) {
     return envelope.type === "error";
   }
@@ -17720,7 +17942,7 @@ _init3 = __decoratorStart(_a5);
 RequestRefusedCondition = __decorateElement(_init3, 0, "RequestRefusedCondition", _RequestRefusedCondition_decorators, RequestRefusedCondition);
 __runInitializers(_init3, 1, RequestRefusedCondition);
 var _MessageInput_decorators, _init4;
-_MessageInput_decorators = [Input({ name: "message" })];
+_MessageInput_decorators = [(0, import_network_client.Input)({ name: "message" })];
 var MessageInput = class {
   resolve(envelope) {
     return Promise.resolve(toMessage(envelope));
@@ -17730,7 +17952,7 @@ _init4 = __decoratorStart(null);
 MessageInput = __decorateElement(_init4, 0, "MessageInput", _MessageInput_decorators, MessageInput);
 __runInitializers(_init4, 1, MessageInput);
 var _EnvelopeInput_decorators, _init5;
-_EnvelopeInput_decorators = [Input({ name: "envelope" })];
+_EnvelopeInput_decorators = [(0, import_network_client.Input)({ name: "envelope" })];
 var EnvelopeInput = class {
   resolve(envelope) {
     return Promise.resolve(envelope);
@@ -17740,7 +17962,7 @@ _init5 = __decoratorStart(null);
 EnvelopeInput = __decorateElement(_init5, 0, "EnvelopeInput", _EnvelopeInput_decorators, EnvelopeInput);
 __runInitializers(_init5, 1, EnvelopeInput);
 var _RefusalInput_decorators, _init6;
-_RefusalInput_decorators = [Input({ name: "refusal" })];
+_RefusalInput_decorators = [(0, import_network_client.Input)({ name: "refusal" })];
 var RefusalInput = class {
   resolve(envelope) {
     return Promise.resolve(envelope.payload);
@@ -17753,8 +17975,10 @@ var NotifyClaudeCode = class {
   constructor(view, channel) {
     this.view = view;
     this.channel = channel;
-    this.id = "claude_code.notify";
   }
+  view;
+  channel;
+  id = "claude_code.notify";
   async invoke(input) {
     const message = input;
     this.view.heard(message);
@@ -17765,8 +17989,10 @@ var ObserveNetwork = class {
   constructor(view, channel) {
     this.view = view;
     this.channel = channel;
-    this.id = "network.observe";
   }
+  view;
+  channel;
+  id = "network.observe";
   async invoke(input) {
     const envelope = input;
     switch (envelope.type) {
@@ -17788,8 +18014,9 @@ var ObserveNetwork = class {
 var ReportRefusal = class {
   constructor(channel) {
     this.channel = channel;
-    this.id = "claude_code.report";
   }
+  channel;
+  id = "claude_code.report";
   async invoke(input) {
     const { code, message } = input;
     await this.channel.push(`The network refused the last request: ${message}`, { kind: "error", code });
@@ -17801,7 +18028,7 @@ function registerDirectives(view, channel) {
     new ObserveNetwork(view, channel),
     new ReportRefusal(channel)
   ];
-  for (const directive of directives) directiveRegistry.register(directive.id, directive);
+  for (const directive of directives) import_network_client.directiveRegistry.register(directive.id, directive);
 }
 function toMessage(envelope) {
   return {
@@ -17821,7 +18048,7 @@ function show(channel, view, message) {
   });
 }
 
-// packages/claude-code/network-session.ts
+// src/network-session.ts
 var NetworkSession = class {
   constructor(settings, view, limit, peerName, defaultOrigin) {
     this.settings = settings;
@@ -17830,23 +18057,29 @@ var NetworkSession = class {
     this.peerName = peerName;
     this.defaultOrigin = defaultOrigin;
   }
+  settings;
+  view;
+  limit;
+  peerName;
+  defaultOrigin;
+  membership;
   getMembership() {
     return this.membership;
   }
   /** Makes a network, joins it, and returns the link that lets others in. */
   async create(name) {
     this.mustBeOutside();
-    const origin2 = this.defaultOrigin;
-    const client = new NetworkClient({ origin: origin2, apiKey: mozaikCloudKey() });
+    const origin = this.defaultOrigin;
+    const client = new import_network_client3.NetworkClient({ origin, apiKey: mozaikCloudKey() });
     const network = await client.createNetwork({ name });
     const invite = await client.createInvite(network.id);
-    await this.enter({ origin: origin2, invite, name });
-    return writeInviteLink({ origin: origin2, invite });
+    await this.enter({ origin, invite, name });
+    return (0, import_invite_link.writeInviteLink)({ origin, invite });
   }
   /** Joins the network of an invite link, or the saved one when there is no link. */
   async join(link) {
     this.mustBeOutside();
-    const network = link ? readInviteLink(link, this.defaultOrigin) : this.settings.read();
+    const network = link ? (0, import_invite_link.readInviteLink)(link, this.defaultOrigin) : this.settings.read();
     if (!network) {
       throw new Error(
         link ? "That is not an invite link" : "No network is saved: pass an invite link, or create a network"
@@ -17857,7 +18090,7 @@ var NetworkSession = class {
   /** Leaves for this session; with `forget`, the sessions to come don't join either. */
   async leave(forget) {
     if (this.membership) {
-      await leave(this.membership.peer, this.membership.networkId);
+      await (0, import_network_client2.leave)(this.membership.peer, this.membership.networkId);
       this.membership = void 0;
       this.view.clear();
     }
@@ -17870,12 +18103,12 @@ var NetworkSession = class {
     const recipient = to === void 0 ? void 0 : this.view.find(to);
     if (to !== void 0 && !recipient) throw new Error(`No peer "${to}" in the network`);
     this.limit.take();
-    await sendMessage(peer, networkId, text, recipient?.id);
+    await (0, import_network_client2.sendMessage)(peer, networkId, text, recipient?.id);
     this.view.heard({ id: crypto.randomUUID(), senderId: peer.id, text, to: recipient?.id, at: /* @__PURE__ */ new Date() });
   }
   /** The invite makes a new peer for this session, and the network is saved for the sessions to come. */
   async enter(network) {
-    const client = new NetworkClient({ origin: network.origin });
+    const client = new import_network_client3.NetworkClient({ origin: network.origin });
     const peer = await client.createPeer({
       name: this.peerName,
       role: "agent",
@@ -17884,7 +18117,7 @@ var NetworkSession = class {
       policy: claudeCodePolicy
     });
     if (!peer.invitedTo) throw new Error("The network didn't say which network the invite is for");
-    await join(peer, peer.invitedTo, client);
+    await (0, import_network_client2.join)(peer, peer.invitedTo, client);
     this.membership = { peer, networkId: peer.invitedTo };
     this.settings.save(network);
   }
@@ -17893,7 +18126,7 @@ var NetworkSession = class {
   }
 };
 
-// packages/claude-code/network-settings.ts
+// src/network-settings.ts
 var import_node_fs2 = require("node:fs");
 var import_node_os2 = require("node:os");
 var import_node_path2 = require("node:path");
@@ -17905,6 +18138,7 @@ var NetworkSettings = class {
   constructor(file = defaultFile()) {
     this.file = file;
   }
+  file;
   read() {
     try {
       const saved = JSON.parse((0, import_node_fs2.readFileSync)(this.file, "utf8"));
@@ -17923,16 +18157,14 @@ var NetworkSettings = class {
   }
 };
 
-// packages/claude-code/network-view.ts
+// src/network-view.ts
 var KEPT_MESSAGES = 200;
 var NetworkView = class {
-  constructor() {
-    /** Everyone seen so far, also those who left: their messages keep a name. */
-    this.known = /* @__PURE__ */ new Map();
-    this.present = /* @__PURE__ */ new Set();
-    this.messages = [];
-    this.welcomedBefore = false;
-  }
+  /** Everyone seen so far, also those who left: their messages keep a name. */
+  known = /* @__PURE__ */ new Map();
+  present = /* @__PURE__ */ new Set();
+  messages = [];
+  welcomedBefore = false;
   /**
    * Takes in who is here and what was said lately. Returns the messages that were sent while
    * this session was away: none the first time, when everything said before is only history.
@@ -17980,26 +18212,10 @@ var NetworkView = class {
   }
 };
 
-// packages/client/send-limit.ts
-var SendLimit = class {
-  constructor(limit = 10, windowMs = 6e4, now = Date.now) {
-    this.limit = limit;
-    this.windowMs = windowMs;
-    this.now = now;
-    this.sentAt = [];
-  }
-  take() {
-    const now = this.now();
-    this.sentAt = this.sentAt.filter((at) => now - at < this.windowMs);
-    if (this.sentAt.length >= this.limit) {
-      const seconds = Math.ceil((this.windowMs - (now - this.sentAt[0])) / 1e3);
-      throw new Error(`Too many messages: ${this.limit} were sent in the last minute. Wait ${seconds}s.`);
-    }
-    this.sentAt.push(now);
-  }
-};
+// src/server.ts
+var import_send_limit = __toESM(require_send_limit());
 
-// packages/claude-code/tools.ts
+// src/tools.ts
 function networkTools(session, view) {
   const peerList = () => {
     const me = session.getMembership()?.peer.id;
@@ -18081,7 +18297,7 @@ ${link}`;
   ];
 }
 
-// packages/claude-code/server.ts
+// src/server.ts
 var INSTRUCTIONS = `This session can talk with other agents on a Mozaik network: other people's Claude Code sessions and other peers.
 
 Events arrive as <channel source="..." kind="...">:
@@ -18107,8 +18323,8 @@ async function main() {
   const channel = new ClaudeCodeChannel(mcp);
   const settings = new NetworkSettings();
   const view = new NetworkView();
-  const origin2 = process.env.NETWORK_ORIGIN || HOSTED_NETWORK;
-  const session = new NetworkSession(settings, view, new SendLimit(), sessionName(), origin2);
+  const origin = process.env.NETWORK_ORIGIN || import_invite_link2.HOSTED_NETWORK;
+  const session = new NetworkSession(settings, view, new import_send_limit.SendLimit(), sessionName(), origin);
   const tools = networkTools(session, view);
   registerDirectives(view, channel);
   mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
