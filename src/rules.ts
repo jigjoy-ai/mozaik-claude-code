@@ -7,7 +7,7 @@ import { InputResolver } from "@mozaik-ai/network-client/peer/input-resolver"
 import { Channel } from "./channel"
 import { Message, NetworkView, PeerInfo } from "./network-view"
 
-type MessageSent = Envelope<{ message: string; to?: string }>
+type MessageSent = Envelope<{ message: string; senderName?: string; to?: string }>
 
 type Refusal = { code: string; message: string }
 
@@ -156,6 +156,7 @@ function toMessage(envelope: MessageSent): Message {
 	return {
 		id: envelope.id,
 		senderId: envelope.senderId,
+		senderName: envelope.payload.senderName,
 		text: envelope.payload.message,
 		to: envelope.payload.to,
 		at: new Date(envelope.createdAt),
