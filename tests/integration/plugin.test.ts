@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { createApp } from "mozaik-network/src/app"
-import { initNetworkModule } from "mozaik-network/src/network-module"
+import { initNetworkModule, resolveNetworkModule } from "mozaik-network/src/network-module"
 
 type ChannelEvent = { content: string; meta: Record<string, string> }
 
@@ -100,6 +100,47 @@ describe("Claude Code plugin", () => {
 			/ana@api: who is on the login bug\?\n.* marko@web → ana@api: me$/,
 		)
 		expect((await marko.call("send_message", { text: "hi", to: "nobody" })).failed).toBe(true)
+	})
+
+	test("a session the network forgot comes back by itself, as a new peer", async () => {
+		const [ana, marko] = await Promise.all([session("ana@api", stateDir()), session("marko@web", stateDir())])
+		const link = (await ana.call("create_network", { name: "team" })).text.split("\n").pop()!
+		await marko.call("join_network", { invite: link })
+
+		// The network forgets its peers and drops their connections: what happens once the ones it kept have gone.
+		const { peerRepository, envelopeDelivery } = resolveNetworkModule()
+		const forgotten = peerRepository as unknown as { peers: Map<string, unknown> }
+		const delivery = envelopeDelivery as unknown as { connections: Map<string, Set<{ terminate(): void }>> }
+		forgotten.peers.clear()
+		for (const sockets of delivery.connections.values()) for (const socket of sockets) socket.terminate()
+
+		const told = (s: Session) => s.events.find((event) => event.meta.kind === "error")
+		await until(() => told(ana) !== undefined && told(marko) !== undefined)
+		expect(told(marko)!.content).toMatch(/joined again as a new peer/)
+
+		// Both are in the network again, under their names, and hear each other.
+		await marko.call("send_message", { text: "still here?" })
+		await until(() => ana.events.some((event) => event.content === "still here?"))
+		expect(ana.events.find((event) => event.content === "still here?")!.meta.from).toBe("marko@web")
+	})
+
+	test("joining from inside a network leaves it first: the same one again, or another", async () => {
+		const [ana, marko, cara] = await Promise.all([
+			session("ana@api", stateDir()),
+			session("marko@web", stateDir()),
+			session("cara@ops", stateDir()),
+		])
+		const team = (await ana.call("create_network", { name: "team" })).text.split("\n").pop()!
+		const ops = (await cara.call("create_network", { name: "ops" })).text.split("\n").pop()!
+		await marko.call("join_network", { invite: team })
+
+		const again = await marko.call("join_network")
+		expect(again.failed).toBe(false)
+		expect(again.text).toContain("ana@api")
+
+		const moved = await marko.call("join_network", { invite: ops })
+		expect(moved.text).toContain("cara@ops")
+		expect(moved.text).not.toContain("ana@api")
 	})
 
 	test("a later session on the same machine is told a network is saved, and joins it without the link", async () => {

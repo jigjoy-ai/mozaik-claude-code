@@ -39,10 +39,12 @@ export class NetworkSession {
 		return writeInviteLink({ origin, invite })
 	}
 
-	/** Joins the network of an invite link, or the saved one when there is no link. */
+	/**
+	 * Joins the network of an invite link, or the saved one when there is no link. A session
+	 * that is in a network leaves it first: with a link it moves to that network, without one
+	 * it comes back to its own as a new peer.
+	 */
 	async join(link?: string): Promise<void> {
-		this.mustBeOutside()
-
 		const network = link ? readInviteLink(link, this.defaultOrigin) : this.settings.read()
 		if (!network) {
 			throw new Error(
@@ -50,18 +52,33 @@ export class NetworkSession {
 			)
 		}
 
+		await this.depart()
 		await this.enter(network)
 	}
 
 	/** Leaves for this session; with `forget`, the sessions to come don't join either. */
 	async leave(forget: boolean): Promise<void> {
-		if (this.membership) {
-			await leave(this.membership.peer, this.membership.networkId)
-			this.membership = undefined
-			this.view.clear()
-		}
+		await this.depart()
 
 		if (forget) this.settings.forget()
+	}
+
+	/**
+	 * The network no longer knows this session's peer (peers are kept for a while, not for good):
+	 * the session comes back as a new peer through the saved invite. False when that invite no
+	 * longer lets it in.
+	 */
+	async comeBack(): Promise<boolean> {
+		const network = this.settings.read()
+		await this.depart()
+		if (!network) return false
+
+		try {
+			await this.enter(network)
+			return true
+		} catch {
+			return false
+		}
 	}
 
 	/** With `to`, a peer's id or name, the message goes to that peer only. */
@@ -95,6 +112,16 @@ export class NetworkSession {
 
 		this.membership = { peer, networkId: peer.invitedTo }
 		this.settings.save(network)
+	}
+
+	private async depart(): Promise<void> {
+		if (!this.membership) return
+
+		const { peer, networkId } = this.membership
+		this.membership = undefined
+		this.view.clear()
+		// A network that no longer knows the peer has nothing to be told.
+		await leave(peer, networkId).catch(() => {})
 	}
 
 	private mustBeOutside(): void {

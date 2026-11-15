@@ -111,23 +111,42 @@ export class ObserveNetwork implements Directive {
 	}
 }
 
-/** Tells Claude what the network refused: a message that wasn't sent would otherwise look sent. */
+/**
+ * Tells Claude what the network refused: a message that wasn't sent would otherwise look sent.
+ * A network that no longer knows the session is not left for Claude to sort out: the session
+ * comes back by itself, and Claude is told how that went.
+ */
 export class ReportRefusal implements Directive {
 	readonly id = "claude_code.report"
 
-	constructor(private readonly channel: Channel) {}
+	constructor(
+		private readonly channel: Channel,
+		private readonly comeBack: () => Promise<boolean>,
+	) {}
 
 	async invoke(input: unknown): Promise<void> {
 		const { code, message } = input as Refusal
-		await this.channel.push(`The network refused the last request: ${message}`, { kind: "error", code })
+
+		if (code !== "unauthorized") {
+			await this.channel.push(`The network refused the last request: ${message}`, { kind: "error", code })
+			return
+		}
+
+		const back = await this.comeBack()
+		await this.channel.push(
+			back
+				? "The network no longer knew this session, so it joined again as a new peer. What was sent just before may not have arrived: send it again if it matters."
+				: "The network no longer knows this session, and the saved invite no longer lets it in. Ask your user for a new invite link and call join_network with it.",
+			{ kind: "error", code },
+		)
 	}
 }
 
-export function registerDirectives(view: NetworkView, channel: Channel): void {
+export function registerDirectives(view: NetworkView, channel: Channel, comeBack: () => Promise<boolean>): void {
 	const directives = [
 		new NotifyClaudeCode(view, channel),
 		new ObserveNetwork(view, channel),
-		new ReportRefusal(channel),
+		new ReportRefusal(channel, comeBack),
 	]
 
 	for (const directive of directives) directiveRegistry.register(directive.id, directive)
