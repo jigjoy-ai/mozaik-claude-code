@@ -18094,12 +18094,16 @@ var NetworkSession = class {
       return false;
     }
   }
-  /** With `to`, a peer's id or name, the message goes to that peer only. */
+  /** With `to`, a peer's id or name (see NetworkView.find), the message goes to that peer only. */
   async send(text, to) {
     if (!this.membership) throw new Error("Not in a network: join one first");
     const { peer, networkId } = this.membership;
     const recipient = to === void 0 ? void 0 : this.view.find(to);
-    if (to !== void 0 && !recipient) throw new Error(`No peer "${to}" in the network`);
+    if (to !== void 0 && !recipient) {
+      const others = this.view.peers().filter((other) => other.id !== peer.id).map((other) => `"${this.view.nameOf(other.id)}"`);
+      const there = others.length > 0 ? `Peers there: ${others.join(", ")}.` : "No other peer is there.";
+      throw new Error(`No peer "${to}" in the network. ${there}`);
+    }
     this.limit.take();
     await (0, import_mozaik_network.sendMessage)(peer, networkId, text, recipient?.id);
     this.view.heard({ id: crypto.randomUUID(), senderId: peer.id, text, to: recipient?.id, at: /* @__PURE__ */ new Date() });
@@ -18215,11 +18219,28 @@ var NetworkView = class {
     const name = this.known.get(peerId)?.name ?? `unknown-${peerId.slice(0, 8)}`;
     return name.replace(/[^\w@.\- ]/g, "?").slice(0, 64);
   }
-  /** A peer that is here, by its id or by the name it is shown under. */
+  /** A name as the model reads it: in quotes when it has a space, so where it ends is plain. */
+  shownName(peerId) {
+    const name = this.nameOf(peerId);
+    return name.includes(" ") ? `"${name}"` : name;
+  }
+  /**
+   * A peer that is here, by its id or by the name it is shown under. Models write a name with
+   * spaces in their own way (`General_Assistant@x`, `generalassistant @ x`, in quotes): that finds
+   * the peer too, but only when no other peer's name reads the same.
+   */
   find(idOrName) {
-    return this.peers().find((peer) => peer.id === idOrName || this.nameOf(peer.id) === idOrName);
+    const peers = this.peers();
+    const exact = peers.find((peer) => peer.id === idOrName || this.nameOf(peer.id) === idOrName);
+    if (exact) return exact;
+    const loose = loosely(idOrName);
+    const alike = peers.filter((peer) => loosely(this.nameOf(peer.id)) === loose);
+    return alike.length === 1 ? alike[0] : void 0;
   }
 };
+function loosely(name) {
+  return name.toLowerCase().replace(/["'`\u201c\u201d\u2018\u2019\s_-]/g, "");
+}
 
 // src/server.ts
 var import_send_limit = __toESM(require_send_limit());
@@ -18228,11 +18249,11 @@ var import_send_limit = __toESM(require_send_limit());
 function networkTools(session, view) {
   const peerList = () => {
     const me = session.getMembership()?.peer.id;
-    return view.peers().map((peer) => `- ${view.nameOf(peer.id)} (${peer.id})${peer.id === me ? " \u2014 this session" : ""}`).join("\n");
+    return view.peers().map((peer) => `- ${view.shownName(peer.id)} (${peer.id})${peer.id === me ? " \u2014 this session" : ""}`).join("\n");
   };
   const line = (message) => {
-    const to = message.to === void 0 ? "" : ` \u2192 ${view.nameOf(message.to)}`;
-    return `${message.at.toISOString()} ${view.nameOf(message.senderId)}${to}: ${message.text}`;
+    const to = message.to === void 0 ? "" : ` \u2192 ${view.shownName(message.to)}`;
+    return `${message.at.toISOString()} ${view.shownName(message.senderId)}${to}: ${message.text}`;
   };
   return [
     {
@@ -18271,10 +18292,10 @@ ${link}`;
     },
     {
       name: "send_message",
-      description: "Send a message to the peers in the network. Pass `to` (a peer's id or name) to reach that peer only; without it every peer gets the message.",
+      description: "Send a message to the peers in the network. Pass `to` (a peer's id, or its name as list_peers shows it) to reach that peer only; without it every peer gets the message.",
       inputSchema: {
         type: "object",
-        properties: { text: { type: "string" }, to: { type: "string", description: "Peer id or name" } },
+        properties: { text: { type: "string" }, to: { type: "string", description: "Peer id, or the name as list_peers shows it" } },
         required: ["text"]
       },
       async call({ text, to }) {
