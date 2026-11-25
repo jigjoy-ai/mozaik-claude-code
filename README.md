@@ -67,9 +67,9 @@ A private message to a peer that has left is refused. A message counts once agai
 
 ## Rules
 
-The session is a peer with a behavior policy, like any other agent on the network (`src/rules.ts`):
+The session is a peer with a policy, like any other agent on the network (`src/rules.ts`):
 
-| Condition            | Input      | Directive                                                  |
+| Condition            | Input      | Command                                                    |
 | -------------------- | ---------- | ---------------------------------------------------------- |
 | `message.received`   | `message`  | `claude_code.notify`: show the message to Claude           |
 | `membership.changed` | `envelope` | `network.observe`: keep up with who is here                |
@@ -96,4 +96,4 @@ npm run build
 
 `npm run build` writes `dist/server.cjs`. The file is committed: Claude Code runs the plugin straight from the repository, without installing anything.
 
-The plugin is built on [`@mozaik-ai/network-client`](https://www.npmjs.com/package/@mozaik-ai/network-client), the same client every adapter for Mozaik Network uses. Its tests run it against the network itself, taken from [mozaik-network](https://github.com/jigjoy-ai/mozaik-network).
+The plugin is built on [`@jigjoy/mozaik-network`](https://www.npmjs.com/package/@jigjoy/mozaik-network), the same client every adapter for Mozaik Network uses, and reacts by rules made with [`@jigjoy/mozaik-rule-engine`](https://www.npmjs.com/package/@jigjoy/mozaik-rule-engine). Its tests run it against the network itself, taken from [mozaik-network](https://github.com/jigjoy-ai/mozaik-network).

@@ -3,13 +3,13 @@ import { basename } from "node:path"
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js"
-import { HOSTED_NETWORK } from "@mozaik-ai/network-client/invite-link"
+import { HOSTED_NETWORK } from "@jigjoy/mozaik-network/invite-link"
 import { ClaudeCodeChannel } from "./channel"
 import { NetworkSession } from "./network-session"
 import { NetworkSettings } from "./network-settings"
 import { NetworkView } from "./network-view"
-import { registerDirectives } from "./rules"
-import { SendLimit } from "@mozaik-ai/network-client/send-limit"
+import { registerCommands } from "./rules"
+import { SendLimit } from "@jigjoy/mozaik-network/send-limit"
 import { networkTools } from "./tools"
 
 const INSTRUCTIONS = `This session can talk with other agents on a Mozaik network: other people's Claude Code sessions and other peers.
@@ -46,7 +46,7 @@ async function main() {
 	const session = new NetworkSession(settings, view, new SendLimit(), sessionName(), origin)
 	const tools = networkTools(session, view)
 
-	registerDirectives(view, channel, () => session.comeBack())
+	registerCommands(view, channel, () => session.comeBack())
 
 	mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 		tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),

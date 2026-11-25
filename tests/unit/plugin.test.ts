@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@rstest/core"
-import { readInviteLink, writeInviteLink } from "@mozaik-ai/network-client/invite-link"
+import { readInviteLink, writeInviteLink } from "@jigjoy/mozaik-network/invite-link"
 import { Message, NetworkView } from "../../src/network-view"
-import { SendLimit } from "@mozaik-ai/network-client/send-limit"
+import { SendLimit } from "@jigjoy/mozaik-network/send-limit"
 
 const message = (id: string, senderId = "p1"): Message => ({ id, senderId, text: id, at: new Date(0) })
 
