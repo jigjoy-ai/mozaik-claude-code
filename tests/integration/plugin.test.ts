@@ -99,7 +99,25 @@ describe("Claude Code plugin", () => {
 		expect((await ana.call("read_messages")).text).toMatch(
 			/ana@api: who is on the login bug\?\n.* marko@web → ana@api: me$/,
 		)
-		expect((await marko.call("send_message", { text: "hi", to: "nobody" })).failed).toBe(true)
+		expect(await marko.call("send_message", { text: "hi", to: "nobody" })).toEqual({
+			text: 'send_message: No peer "nobody" in the network. Peers there: "ana@api".',
+			failed: true,
+		})
+	})
+
+	test("a peer whose name has spaces is listed in quotes, and reached however the name is written", async () => {
+		const [ana, marko] = await Promise.all([
+			session("General Assistant@ana", stateDir()),
+			session("marko@web", stateDir()),
+		])
+		const link = (await ana.call("create_network", { name: "team" })).text.split("\n").pop()!
+
+		expect((await marko.call("join_network", { invite: link })).text).toContain('- "General Assistant@ana" (')
+
+		await marko.call("send_message", { text: "hello", to: "General_Assistant@ana" })
+		await until(() => ana.events.length === 1)
+		expect(ana.events[0]).toMatchObject({ content: "hello", meta: { from: "marko@web", direct: "true" } })
+		expect((await marko.call("read_messages")).text).toMatch(/marko@web → "General Assistant@ana": hello$/)
 	})
 
 	test("a session the network forgot comes back by itself, as a new peer", async () => {

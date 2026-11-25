@@ -1,6 +1,6 @@
 {
 	"name": "mozaik-claude-code",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"private": true,
 	"description": "Connects Claude Code sessions to a Mozaik network: see the other sessions and exchange messages with them as they work.",
 	"license": "MIT",
@@ -10,8 +10,9 @@
 		"typecheck": "tsc --noEmit -p ."
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.32.2",
-		"@mozaik-ai/network-client": "^0.1.0"
+		"@jigjoy/mozaik-network": "^0.1.0",
+		"@jigjoy/mozaik-rule-engine": "^0.0.2",
+		"@modelcontextprotocol/sdk": "^1.32.2"
 	},
 	"devDependencies": {
 		"@rstest/core": "0.12.4",

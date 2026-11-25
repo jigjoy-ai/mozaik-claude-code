@@ -1,9 +1,13 @@
-import { Condition, directiveRegistry, Input } from "@mozaik-ai/network-client"
-import { BehaviorPolicyDefinition } from "@mozaik-ai/network-client/network-client"
-import { ConditionSpecification } from "@mozaik-ai/network-client/peer/condition-specification"
-import { Directive } from "@mozaik-ai/network-client/peer/directive"
-import { Envelope } from "@mozaik-ai/network-client/peer/envelope"
-import { InputResolver } from "@mozaik-ai/network-client/peer/input-resolver"
+import {
+	CommandContract,
+	commandRegistry,
+	Condition,
+	ConditionContract,
+	InputResolver,
+	InputResolverContract,
+	PolicyDefinition,
+} from "@jigjoy/mozaik-rule-engine"
+import { Envelope } from "@jigjoy/mozaik-network/envelope"
 import { Channel } from "./channel"
 import { Message, NetworkView, PeerInfo } from "./network-view"
 
@@ -12,58 +16,58 @@ type MessageSent = Envelope<{ message: string; senderName?: string; to?: string 
 type Refusal = { code: string; message: string }
 
 /** How a Claude Code session acts on what happens in the network. */
-export const claudeCodePolicy: BehaviorPolicyDefinition = {
+export const claudeCodePolicy: PolicyDefinition = {
 	rules: [
-		{ condition: "message.received", input: "message", directive: "claude_code.notify" },
-		{ condition: "membership.changed", input: "envelope", directive: "network.observe" },
-		{ condition: "request.refused", input: "refusal", directive: "claude_code.report" },
+		{ condition: "message.received", inputResolver: "message", command: "claude_code.notify" },
+		{ condition: "membership.changed", inputResolver: "envelope", command: "network.observe" },
+		{ condition: "request.refused", inputResolver: "refusal", command: "claude_code.report" },
 	],
 }
 
 @Condition({ name: "message.received" })
-export class MessageReceivedCondition extends ConditionSpecification {
+export class MessageReceivedCondition extends ConditionContract<Envelope<any>> {
 	isSatisfiedBy(envelope: Envelope<any>) {
 		return envelope.type === "message.sent"
 	}
 }
 
 @Condition({ name: "membership.changed" })
-export class MembershipChangedCondition extends ConditionSpecification {
+export class MembershipChangedCondition extends ConditionContract<Envelope<any>> {
 	isSatisfiedBy(envelope: Envelope<any>) {
 		return ["peer.welcomed", "peer.joined", "peer.left"].includes(envelope.type)
 	}
 }
 
 @Condition({ name: "request.refused" })
-export class RequestRefusedCondition extends ConditionSpecification {
+export class RequestRefusedCondition extends ConditionContract<Envelope<any>> {
 	isSatisfiedBy(envelope: Envelope<any>) {
 		return envelope.type === "error"
 	}
 }
 
-@Input({ name: "message" })
-export class MessageInput implements InputResolver<MessageSent, Message> {
+@InputResolver({ name: "message" })
+export class MessageInput implements InputResolverContract<MessageSent, Message> {
 	resolve(envelope: MessageSent): Promise<Message> {
 		return Promise.resolve(toMessage(envelope))
 	}
 }
 
-@Input({ name: "envelope" })
-export class EnvelopeInput implements InputResolver<Envelope<unknown>, Envelope<unknown>> {
+@InputResolver({ name: "envelope" })
+export class EnvelopeInput implements InputResolverContract<Envelope<unknown>, Envelope<unknown>> {
 	resolve(envelope: Envelope<unknown>): Promise<Envelope<unknown>> {
 		return Promise.resolve(envelope)
 	}
 }
 
-@Input({ name: "refusal" })
-export class RefusalInput implements InputResolver<Envelope<Refusal>, Refusal> {
+@InputResolver({ name: "refusal" })
+export class RefusalInput implements InputResolverContract<Envelope<Refusal>, Refusal> {
 	resolve(envelope: Envelope<Refusal>): Promise<Refusal> {
 		return Promise.resolve(envelope.payload)
 	}
 }
 
 /** Shows a peer's message to Claude and keeps it for read_messages. */
-export class NotifyClaudeCode implements Directive {
+export class NotifyClaudeCode implements CommandContract {
 	readonly id = "claude_code.notify"
 
 	constructor(
@@ -80,7 +84,7 @@ export class NotifyClaudeCode implements Directive {
 }
 
 /** Keeps up with who is in the network. Nobody's coming or going is shown to Claude: list_peers answers that. */
-export class ObserveNetwork implements Directive {
+export class ObserveNetwork implements CommandContract {
 	readonly id = "network.observe"
 
 	constructor(
@@ -116,7 +120,7 @@ export class ObserveNetwork implements Directive {
  * A network that no longer knows the session is not left for Claude to sort out: the session
  * comes back by itself, and Claude is told how that went.
  */
-export class ReportRefusal implements Directive {
+export class ReportRefusal implements CommandContract {
 	readonly id = "claude_code.report"
 
 	constructor(
@@ -142,14 +146,14 @@ export class ReportRefusal implements Directive {
 	}
 }
 
-export function registerDirectives(view: NetworkView, channel: Channel, comeBack: () => Promise<boolean>): void {
-	const directives = [
+export function registerCommands(view: NetworkView, channel: Channel, comeBack: () => Promise<boolean>): void {
+	const commands = [
 		new NotifyClaudeCode(view, channel),
 		new ObserveNetwork(view, channel),
 		new ReportRefusal(channel, comeBack),
 	]
 
-	for (const directive of directives) directiveRegistry.register(directive.id, directive)
+	for (const command of commands) commandRegistry.register(command.id, command)
 }
 
 function toMessage(envelope: MessageSent): Message {

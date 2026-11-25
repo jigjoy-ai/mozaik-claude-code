@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@rstest/core"
-import { readInviteLink, writeInviteLink } from "@mozaik-ai/network-client/invite-link"
+import { readInviteLink, writeInviteLink } from "@jigjoy/mozaik-network/invite-link"
 import { Message, NetworkView } from "../../src/network-view"
-import { SendLimit } from "@mozaik-ai/network-client/send-limit"
+import { SendLimit } from "@jigjoy/mozaik-network/send-limit"
 
 const message = (id: string, senderId = "p1"): Message => ({ id, senderId, text: id, at: new Date(0) })
 
@@ -72,5 +72,54 @@ describe("network view", () => {
 		expect(view.nameOf("p1")).toBe("one")
 		expect(view.nameOf("never-seen")).toBe("unknown-never-se")
 		expect(view.peers().map((peer) => peer.id)).toEqual(["p1"])
+	})
+})
+
+describe("finding a peer by what the model wrote", () => {
+	const view = () => {
+		const view = new NetworkView()
+		view.welcomed(
+			[
+				{ id: "p1", name: "General Assistant@tmiodrag11" },
+				{ id: "p2", name: "ana@api" },
+			],
+			[],
+		)
+		return view
+	}
+
+	test("by its id, or by its name as it is shown", () => {
+		expect(view().find("p1")?.id).toBe("p1")
+		expect(view().find("General Assistant@tmiodrag11")?.id).toBe("p1")
+		expect(view().find("ana@api")?.id).toBe("p2")
+	})
+
+	test("a name with spaces, written the way models write it", () => {
+		for (const written of [
+			"General_Assistant@tmiodrag11",
+			"GeneralAssistant@tmiodrag11",
+			"general assistant@tmiodrag11",
+			'"General Assistant@tmiodrag11"',
+			"`General Assistant@tmiodrag11`",
+			"General Assistant @ tmiodrag11",
+			"general-assistant@TMIODRAG11",
+		]) {
+			expect(view().find(written)?.id).toBe("p1")
+		}
+	})
+
+	test("a spelling that two peers' names read as finds neither, and an unknown name finds nothing", () => {
+		const two = view()
+		two.joined({ id: "p3", name: "general_assistant@tmiodrag11" })
+
+		expect(two.find("GeneralAssistant@tmiodrag11")).toBeUndefined()
+		expect(two.find("General Assistant@tmiodrag11")?.id).toBe("p1")
+		expect(two.find("general_assistant@tmiodrag11")?.id).toBe("p3")
+		expect(view().find("General Assistant@someone-else")).toBeUndefined()
+	})
+
+	test("a name with spaces is shown in quotes; one without, as it is", () => {
+		expect(view().shownName("p1")).toBe('"General Assistant@tmiodrag11"')
+		expect(view().shownName("p2")).toBe("ana@api")
 	})
 })
